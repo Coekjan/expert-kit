@@ -69,7 +69,7 @@ Here are some tutorials to help you quickly start with Expert Kit.
 
 ## Contact Us
 
-If you have any questions, please join our discussion at https://expert-kit.zulipchat.com/
+If you have any questions, please join our discussion at https://expert-kit.zulipchat.com/ or post new [issues](https://github.com/expert-kit/expert-kit/issues).
 
 ## License Agreement
 
