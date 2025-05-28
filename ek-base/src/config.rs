@@ -1,6 +1,6 @@
 use std::{
     net::SocketAddr,
-    path::{Path, PathBuf},
+    path::{Path},
     sync::LazyLock,
 };
 
@@ -60,6 +60,24 @@ pub struct WorkerPorts {
 
 #[derive(Debug, Deserialize, Clone)]
 #[allow(unused)]
+pub struct CpuAffinityConfig {
+    // List of CPU core IDs to bind the worker to
+    // Example: [0, 1, 2, 3] to bind to cores 0-3
+    pub cores: Option<Vec<usize>>,
+    // NUMA node IDs to bind the worker to
+    // Example: [0] for NUMA node 0, [0, 1] for NUMA nodes 0 and 1
+    pub numa_nodes: Option<Vec<usize>>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(unused)]
+pub struct WorkerAdvancedSettings {
+    // CPU affinity and NUMA configuration
+    pub cpu_affinity: Option<CpuAffinityConfig>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[allow(unused)]
 pub struct WorkerSettings {
     #[serde(default = "default_worker_id")]
     pub id: String,
@@ -69,6 +87,7 @@ pub struct WorkerSettings {
     pub device: Option<String>,
     #[serde(default = "default_worker_metrics")]
     pub metrics: String,
+    pub advanced: Option<WorkerAdvancedSettings>,
 }
 
 fn default_worker_metrics() -> String {
@@ -208,6 +227,10 @@ worker:
   broadcast: 0.0.0.0
   ports:
     main: 51234
+  advanced:
+    cpu_affinity:
+      cores: [0, 1, 2, 3]
+      numa_node: [0, 1]
 
 controller:
   listen: 0.0.0.0
@@ -228,7 +251,14 @@ controller:
         let res = config.try_deserialize::<Settings>().unwrap();
         assert_eq!(res.inference.hidden_dim, 2048);
         assert_eq!(res.worker.metrics, "0.0.0.0:9091");
+        
+        // Test advanced settings
+        let advanced = res.worker.advanced.as_ref().unwrap();
+        let cpu_affinity = advanced.cpu_affinity.as_ref().unwrap();
+        assert_eq!(cpu_affinity.cores.as_ref().unwrap(), &vec![0, 1, 2, 3]);
+        assert_eq!(cpu_affinity.numa_nodes.as_ref().unwrap(), &vec![0, 1]);
     }
+
 
     #[test]
     fn test_env_override() {
