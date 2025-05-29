@@ -1,6 +1,6 @@
 use std::{
     net::SocketAddr,
-    path::{Path},
+    path::Path,
     sync::LazyLock,
 };
 
@@ -147,8 +147,8 @@ fn default_log_enable() -> bool {
 }
 
 fn default_log_root() -> String {
-    let path = "/var/log/expert-kit".to_string();
-    path
+    
+    "/var/log/expert-kit".to_string()
 }
 
 #[derive(Debug, Deserialize, Clone)]
