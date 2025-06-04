@@ -5,10 +5,14 @@ edition = "2024"
 
 [dependencies]
 
+libc = { workspace = true }
+num_cpus = { workspace = true }
+
 clap = { workspace = true }
 ek_db = { path = "../ek-db" }
 ek_computation = { path = "../ek-computation" }
 ek_base = { path = "../ek-base" }
+
 tokio = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }

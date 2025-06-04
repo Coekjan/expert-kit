@@ -1,7 +1,6 @@
 mod core;
 
 use ek_base::{
-    error::EKError,
     tracing::grpc::OTelGrpcServerMiddleware,
 };
 use state::StateInspector;
@@ -13,39 +12,23 @@ mod manager;
 pub mod server;
 pub mod state;
 pub mod x;
-mod affinity;
 
 use crate::metrics::spawn_metrics_server;
 use crate::x::get_graceful_shutdown_ch;
 
 use super::{
     proto::ek::worker::v1::computation_service_server::ComputationServiceServer,
-    worker::{server::BasicExpertImpl, state::StateClient},
-    worker::{affinity::validate_cpu_affinity_config, affinity::apply_cpu_affinity}
+    worker::{
+        server::BasicExpertImpl, 
+        state::StateClient,
+    },
 };
 use ek_base::{config::get_ek_settings, error::EKResult};
 
 
 pub async fn worker_main() -> EKResult<()> {
     let settings = get_ek_settings();
-    
-    // Apply CPU affinity settings if configured
-    if let Some(advanced_settings) = &settings.worker.advanced {
-        if let Some(cpu_affinity_config) = &advanced_settings.cpu_affinity {
-            // Validate configuration first
-            if let Err(e) = validate_cpu_affinity_config(cpu_affinity_config) {
-                log::error!("Invalid CPU affinity configuration: {}", e);
-                return Err(EKError::InvalidInput(e));
-            }
-            
-            // Apply CPU affinity settings
-            if let Err(e) = apply_cpu_affinity(cpu_affinity_config) {
-                log::error!("Failed to apply CPU affinity: {}", e);
-                return Err(EKError::RuntimeError(e));
-            }
-        }
-    }
-    
+
     spawn_metrics_server(&settings.worker.metrics);
 
     let token = CancellationToken::new();

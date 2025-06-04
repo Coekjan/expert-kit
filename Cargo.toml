@@ -19,6 +19,8 @@ polars = { version = "0.46.0", features = [
     "parquet",
 ] }
 
+libc = "0.2.172"
+num_cpus = "1.16.0"
 log = { version = "0.4.26", features = ["kv"] }
 clap = { version = "4.5.31", features = ["derive"] }
 polars-io = "0.46.0"

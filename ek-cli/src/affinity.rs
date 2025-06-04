@@ -42,15 +42,13 @@ impl CpuAffinityOps for LinuxCpuAffinityOps {
             let mut cpu_set: cpu_set_t = std::mem::zeroed();
             CPU_ZERO(&mut cpu_set);
 
-            let total_cpu_num = num_cpus::get();
-
             for &core in cores {
-                if core >= total_cpu_num as usize {
-                    return Err(format!("CPU core {} exceeds total CPU count", core));
+                if core >= libc::CPU_SETSIZE as usize {
+                    return Err(format!("CPU core {} exceeds CPU_SETSIZE limit", core));
                 }
                 CPU_SET(core, &mut cpu_set);
             }
-
+            
             let result = sched_setaffinity(0, std::mem::size_of::<cpu_set_t>(), &cpu_set);
             if result != 0 {
                 let error = std::io::Error::last_os_error();
@@ -62,7 +60,6 @@ impl CpuAffinityOps for LinuxCpuAffinityOps {
     }
 
     fn set_numa_affinity(&self, numa_nodes: &[usize]) -> Result<(), String> {
-        self.set_numa_memory_policy(numa_nodes)?;
         self.set_numa_cpu_affinity(numa_nodes)?;
         Ok(())
     }
@@ -114,39 +111,6 @@ impl CpuAffinityOps for LinuxCpuAffinityOps {
 
 #[cfg(target_os = "linux")]
 impl LinuxCpuAffinityOps {
-    /// Set NUMA memory policy using syscalls
-    fn set_numa_memory_policy(&self, numa_nodes: &[usize]) -> Result<(), String> {
-        use libc::{c_long, syscall, SYS_set_mempolicy};
-        
-        const MPOL_BIND: c_long = 2;
-        const MPOL_MF_STRICT: c_long = 1;
-        
-        // Create a bitmask for the NUMA nodes
-        let mut nodemask: u64 = 0;
-        for &node in numa_nodes {
-            if node >= 64 {
-                return Err(format!("NUMA node {} exceeds maximum supported node number", node));
-            }
-            nodemask |= 1u64 << node;
-        }
-        
-        unsafe {
-            let result = syscall(
-                SYS_set_mempolicy,
-                MPOL_BIND | MPOL_MF_STRICT,
-                &nodemask as *const u64,
-                64u64, // maxnode
-            );
-            
-            if result != 0 {
-                let error = std::io::Error::last_os_error();
-                return Err(format!("Failed to set NUMA memory policy: {}", error));
-            }
-        }
-        
-        Ok(())
-    }
-    
     /// Set CPU affinity for NUMA nodes
     fn set_numa_cpu_affinity(&self, numa_nodes: &[usize]) -> Result<(), String> {
         // Get CPU cores for the specified NUMA nodes
@@ -288,6 +252,20 @@ pub fn get_cpu_affinity_ops() -> Box<dyn CpuAffinityOps> {
     {
         Box::new(DefaultCpuAffinityOps)
     }
+}
+
+pub fn try_apply_cpu_affinity(settings: &ek_base::config::WorkerSettings) -> Result<(), String> {
+    if let Some(advanced) = &settings.advanced {
+        if let Some(cpu_affinity) = &advanced.cpu_affinity {
+            validate_cpu_affinity_config(cpu_affinity)?;
+            apply_cpu_affinity(cpu_affinity)?;
+        } else {
+            log::info!("No CPU affinity settings provided, skipping.");
+        }
+    } else {
+        log::info!("No advanced settings provided, skipping CPU affinity configuration.");
+    }
+    Ok(())
 }
 
 /// Apply CPU affinity settings based on configuration
