@@ -20,12 +20,15 @@ use super::{
 };
 use ek_base::{config::get_ek_settings, error::EKResult};
 
+/// Main worker entry point
 pub async fn worker_main() -> EKResult<()> {
     let settings = get_ek_settings();
     spawn_metrics_server(&settings.worker.metrics);
 
     let token = CancellationToken::new();
     let cli_cancel = token.clone();
+    
+    // Spawn state client task (handles expert loading/unloading)
     let cli = tokio::task::spawn(async move {
         let worker_id = x::get_worker_id();
         log::info!("ek hostname: {:}", worker_id);
@@ -37,13 +40,16 @@ pub async fn worker_main() -> EKResult<()> {
         }
     });
 
+    // Spawn gRPC server task (handles computation requests)
     let srv = tokio::task::spawn(async move {
-        let server = BasicExpertImpl::new();
+        let server = BasicExpertImpl::new();  // Uses both sync and async gates
         let settings = &get_ek_settings().worker;
         let addr = format!("{}:{}", settings.listen, settings.ports.main)
             .parse()
             .unwrap();
         log::info!("worker server listening on {}", addr);
+        
+        // Set up gRPC server with OpenTelemetry middleware
         let layer = tower::ServiceBuilder::new()
             .layer_fn(OTelGrpcServerMiddleware::new)
             .into_inner();
@@ -62,8 +68,10 @@ pub async fn worker_main() -> EKResult<()> {
         }
     });
 
+    // Spawn state inspector task (monitors loading progress)
     let state_inspect = StateInspector::spawn();
-
+    
+    // Wait for any task to complete or receive shutdown signal
     select! {
         _ = cli => { },
         _ = srv => { },

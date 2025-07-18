@@ -181,8 +181,19 @@ fn get_command_name(cmd: &Command) -> &'static str {
     }
 }
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 48)]
-async fn main() {
+
+/// Init tokio runtime based on command
+fn init_tokio_runtime(_command: &Command) -> Result<tokio::runtime::Runtime, std::io::Error> {
+    // TODO: Init tokio runtime based on command, temporarily use a default runtime
+    // TODO: hardcoded threadnum for now, need to be improved later
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(64)
+        .max_blocking_threads(64)
+        .enable_all()
+        .build()
+}
+
+fn main() {
     let cli = RootCli::parse();
     if cli.debug {
         unsafe { std::env::set_var("RUST_LOG", "debug") };
@@ -204,23 +215,36 @@ async fn main() {
             .map(|x| x.as_str())
             .collect::<Vec<_>>(),
     );
-    init_tracing_subscriber(command_name);
     init_log();
     log::info!("config source: {:?}", config_src);
-    let res = match cli.command {
-        Command::Onnx { command } => onnx::execute_onnx(command).await,
-        Command::Pretrain { command } => execute_pretrain(command).await,
-        Command::Worker {} => worker_main().await,
-        Command::Controller {} => controller_main().await,
-        Command::Doctor {} => doctor_main().await,
-        Command::WeightServer { host, port, model } => {
-            let model: &[PathBuf] = unsafe { transmute(model.as_slice()) };
-            weight_srv::server::listen(model, (host, port)).await
+    
+    // Init tokio runtime (Prepare for cpu affinity settings)
+    let tokio_rt = match init_tokio_runtime(&cli.command) {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Failed to create Tokio runtime: {}", e);
+            std::process::exit(1);
         }
-        Command::DB { command } => execute_db(command).await,
-        Command::Model { command } => execute_model(command).await,
-        Command::Schedule { command } => execute_schedule(command).await,
     };
+    
+    let res = tokio_rt.block_on(async {
+        init_tracing_subscriber(command_name);
+        match cli.command {
+            Command::Onnx { command } => onnx::execute_onnx(command).await,
+            Command::Pretrain { command } => execute_pretrain(command).await,
+            Command::Worker {} => worker_main().await,
+            Command::Controller {} => controller_main().await,
+            Command::Doctor {} => doctor_main().await,
+            Command::WeightServer { host, port, model } => {
+                let model: &[PathBuf] = unsafe { transmute(model.as_slice()) };
+                weight_srv::server::listen(model, (host, port)).await
+            }
+            Command::DB { command } => execute_db(command).await,
+            Command::Model { command } => execute_model(command).await,
+            Command::Schedule { command } => execute_schedule(command).await,
+        }
+    });
+
     if let Err(e) = res {
         eprintln!("Error: {}", e);
         std::process::exit(1);
