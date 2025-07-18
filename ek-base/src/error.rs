@@ -67,6 +67,9 @@ pub enum EKError {
 
     #[error("onnx error {0}")]
     OnnxError(#[from] ort::Error),
+
+    #[error("OpenDAL error {0}")]
+    RuntimeError(string::String),
 }
 
 pub type EKResult<T> = std::result::Result<T, EKError>;

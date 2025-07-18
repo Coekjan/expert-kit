@@ -1,6 +1,8 @@
 mod core;
 
-use ek_base::tracing::grpc::OTelGrpcServerMiddleware;
+use ek_base::{
+    tracing::grpc::OTelGrpcServerMiddleware,
+};
 use state::StateInspector;
 use tokio::select;
 use tokio::signal;
@@ -16,13 +18,17 @@ use crate::x::get_graceful_shutdown_ch;
 
 use super::{
     proto::ek::worker::v1::computation_service_server::ComputationServiceServer,
-    worker::{server::BasicExpertImpl, state::StateClient},
+    worker::{
+        server::BasicExpertImpl, 
+        state::StateClient,
+    },
 };
 use ek_base::{config::get_ek_settings, error::EKResult};
 
 /// Main worker entry point
 pub async fn worker_main() -> EKResult<()> {
     let settings = get_ek_settings();
+
     spawn_metrics_server(&settings.worker.metrics);
 
     let token = CancellationToken::new();

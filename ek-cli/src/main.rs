@@ -7,16 +7,19 @@ mod pretrain;
 mod schedule;
 
 mod onnx;
+mod affinity;
 use db::execute_db;
 use doctor::doctor_main;
 use ek_base::config::get_ek_settings_base;
 use ek_computation::{controller::controller_main, worker::worker_main};
-use env_logger::fmt::{default_kv_format, style};
+use env_logger::fmt::default_kv_format;
 use opentelemetry::{
     KeyValue, propagation::TextMapCompositePropagator, trace::TracerProvider as _,
 };
+use affinity::try_apply_cpu_affinity;
 use std::io::Write;
 
+use tokio::runtime::Runtime;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use ek_db::weight_srv;
@@ -181,16 +184,49 @@ fn get_command_name(cmd: &Command) -> &'static str {
     }
 }
 
+const DEFAULT_THREAD_NUM:usize = 48;
 
 /// Init tokio runtime based on command
-fn init_tokio_runtime(_command: &Command) -> Result<tokio::runtime::Runtime, std::io::Error> {
-    // TODO: Init tokio runtime based on command, temporarily use a default runtime
-    // TODO: hardcoded threadnum for now, need to be improved later
-    tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(64)
-        .max_blocking_threads(64)
-        .enable_all()
-        .build()
+fn init_tokio_runtime(command: &Command) -> Result<Runtime, std::io::Error> {
+    match command {
+        Command::Worker {} => {
+            // Apply CPU affinity before creating runtime for worker
+            let settings = ek_base::config::get_ek_settings();
+            if let Err(e) = try_apply_cpu_affinity(&settings.worker) {
+                log::warn!("Failed to apply CPU affinity before runtime creation: {}", e);
+            } else {
+                log::debug!("✅ CPU affinity applied before Tokio runtime creation");
+            }
+            
+            // Determine worker thread count based on CPU affinity configuration
+            let worker_threads = if let Some(advanced) = &settings.worker.advanced {
+                if let Some(cpu_config) = &advanced.cpu_affinity {
+                    cpu_config.cores.as_ref().map(|cores| cores.len()).unwrap_or_else(|| DEFAULT_THREAD_NUM)
+                } else {
+                    DEFAULT_THREAD_NUM
+                }
+            } else {
+                DEFAULT_THREAD_NUM
+            };
+            
+            log::info!("Creating Tokio runtime with {} worker threads", worker_threads);
+            
+            // TODO: hardcoded threadnum for now, need to be improved later
+            // Create runtime with limited worker threads
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(worker_threads)
+                .max_blocking_threads(64)
+                .enable_all()
+                .build()
+        }
+        _ => {
+            // Use default runtime for other commands
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(DEFAULT_THREAD_NUM)
+                .enable_all()
+                .build()
+        }
+    }
 }
 
 fn main() {
@@ -200,11 +236,11 @@ fn main() {
     }
     let command_name = get_command_name(&cli.command);
 
+    // Init config
     let mut config_src = vec![];
     if let Ok(path) = std::env::var("EK_CONFIG") {
         config_src.push(path);
     }
-
     if let Some(path) = cli.config {
         config_src.push(path.to_string());
     }
@@ -215,9 +251,13 @@ fn main() {
             .map(|x| x.as_str())
             .collect::<Vec<_>>(),
     );
-    init_log();
     log::info!("config source: {:?}", config_src);
-    
+    let settings = ek_base::config::get_ek_settings();
+    log::info!("settings: {:?}", settings);
+
+    // Init log
+    init_log();
+
     // Init tokio runtime (Prepare for cpu affinity settings)
     let tokio_rt = match init_tokio_runtime(&cli.command) {
         Ok(rt) => rt,
@@ -226,8 +266,9 @@ fn main() {
             std::process::exit(1);
         }
     };
-    
+
     let res = tokio_rt.block_on(async {
+        // Must place tracing subscriber init in tokio runtime block
         init_tracing_subscriber(command_name);
         match cli.command {
             Command::Onnx { command } => onnx::execute_onnx(command).await,
