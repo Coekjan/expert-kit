@@ -24,7 +24,7 @@ impl std::fmt::Display for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Device::CPU => write!(f, "CPU"),
-            Device::CUDA(idx) => write!(f, "CUDA({})", idx),
+            Device::CUDA(idx) => write!(f, "CUDA({idx})"),
         }
     }
 }
@@ -34,11 +34,11 @@ impl From<&str> for Device {
         let str_dev = value.to_lowercase();
         if str_dev == "cpu" {
             Device::CPU
-        } else if str_dev.starts_with("cuda") {
-            let idx = str_dev[4..].parse::<usize>().unwrap_or(0);
+        } else if let Some(str_dev) = str_dev.strip_prefix("cuda") {
+            let idx = str_dev.parse::<usize>().unwrap_or(0);
             Device::CUDA(idx)
         } else {
-            panic!("Unsupported device: {}", value);
+            panic!("Unsupported device: {value}");
         }
     }
 }

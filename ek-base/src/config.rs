@@ -1,8 +1,4 @@
-use std::{
-    net::SocketAddr,
-    path::Path,
-    sync::LazyLock,
-};
+use std::{net::SocketAddr, path::Path, sync::LazyLock};
 
 use config::{Config, Environment};
 use once_cell::sync::OnceCell;
@@ -147,7 +143,6 @@ fn default_log_enable() -> bool {
 }
 
 fn default_log_root() -> String {
-    
     "/var/log/expert-kit".to_string()
 }
 
@@ -171,13 +166,14 @@ pub fn env_source() -> Environment {
 }
 pub fn get_ek_settings_base(src: &[&str]) -> &'static Settings {
     static CONFIG: OnceCell<Settings> = OnceCell::new();
-    let res = CONFIG.get_or_init(|| {
+
+    (CONFIG.get_or_init(|| {
         let mut settings = Config::builder();
         let candidates = src.iter().chain(["/etc/expert-kit/config.yaml"].iter());
 
         for path in candidates {
             if Path::new(path).exists() {
-                log::info!("Loading config from {}", path);
+                log::info!("Loading config from {path}");
                 settings = settings.add_source(config::File::with_name(path));
                 break;
             }
@@ -186,8 +182,7 @@ pub fn get_ek_settings_base(src: &[&str]) -> &'static Settings {
         let settings = settings.build().unwrap();
 
         settings.try_deserialize::<Settings>().unwrap()
-    });
-    res
+    })) as _
 }
 
 pub fn get_ek_settings() -> &'static Settings {
@@ -252,14 +247,13 @@ controller:
         let res = config.try_deserialize::<Settings>().unwrap();
         assert_eq!(res.inference.hidden_dim, 2048);
         assert_eq!(res.worker.metrics, "0.0.0.0:9091");
-        
+
         // Test advanced settings
         let advanced = res.worker.advanced.as_ref().unwrap();
         let cpu_affinity = advanced.cpu_affinity.as_ref().unwrap();
         assert_eq!(cpu_affinity.cores.as_ref().unwrap(), &vec![0, 1, 2, 3]);
         assert_eq!(cpu_affinity.numa_nodes.as_ref().unwrap(), &vec![0, 1]);
     }
-
 
     #[test]
     fn test_env_override() {

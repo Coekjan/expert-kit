@@ -41,13 +41,13 @@ impl Default for EKInstance {
         let settings = get_ek_settings();
         let _ = INSTANCE_COUNTER.fetch_add(1, Ordering::SeqCst);
 
-        let device = Device::from(settings.worker.device.as_str());        
+        let device = Device::from(settings.worker.device.as_str());
 
         Self {
             hidden: settings.inference.hidden_dim,
             intermediate: settings.inference.intermediate_dim,
             backend: ExpertBackendType::Torch,
-            device: device,
+            device,
         }
     }
 }
@@ -79,7 +79,7 @@ mod test {
 
     #[test]
     fn test_force_cuda() {
-        let _ = tch::Tensor::zeros(&[1, 2], (tch::Kind::Float, tch::Device::Cuda(0)));
+        let _ = tch::Tensor::zeros([1, 2], (tch::Kind::Float, tch::Device::Cuda(0)));
         println!("Tensor on CUDA successfully created.");
     }
 }

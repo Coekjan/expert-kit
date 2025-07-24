@@ -32,14 +32,14 @@ pub struct StateClient {
     tensor_db: Arc<RwLock<SafeTensorDB>>,
     expert_db: Arc<RwLock<dyn ExpertDB + Sync + Send + 'static>>,
     worker_id: String,
-    gate_async: GlobalEKInstanceGateAsync,  // Use async gate for state management
+    gate_async: GlobalEKInstanceGateAsync, // Use async gate for state management
     controller_addr: Endpoint,
 }
 
 impl StateClient {
     pub fn new(addr: Endpoint, worker_id: &str) -> Self {
         let edb = get_expert_db();
-        let gate_async = get_instance_gate();  // Use async gate for state operations
+        let gate_async = get_instance_gate(); // Use async gate for state operations
         let tdb = SafeTensorDB::new_shared();
         Self {
             tensor_db: tdb,
@@ -76,7 +76,7 @@ impl StateClient {
                 match self.handle_states(state).await {
                     Ok(_) => {}
                     Err(e) => {
-                        log::error!("sync remote state error {:?}", e);
+                        log::error!("sync remote state error {e:?}");
                     }
                 }
             }
@@ -113,7 +113,7 @@ impl StateClient {
             select! {
                 e = self.run_inner(token.clone()) => {
                     if let Err(e) = e {
-                        log::error!("state client error {:?}", e);
+                        log::error!("state client error {e:?}");
                         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                     }
                 },
@@ -149,7 +149,7 @@ impl StateClient {
             log::debug!("load expert {}", &id);
             let ek = ExpertKey::from_expert_id(model_name, &expert.id)?;
             if let Err(e) = x::load_expert_task(tdb, edb.clone(), instance, &ek).await {
-                log::error!("error in load expert {}", e)
+                log::error!("error in load expert {e}")
             }
             drop(permit);
             Ok(())
@@ -162,7 +162,7 @@ impl StateClient {
         let incoming_ids: Vec<String> = incoming.iter().map(|e| e.id.clone()).collect();
         for e in current.iter().filter(|e| !incoming_ids.contains(e)) {
             if let Err(e) = lg.remove(e).await {
-                log::error!("remove expert error {:?}", e);
+                log::error!("remove expert error {e:?}");
             }
         }
     }
@@ -232,7 +232,7 @@ impl StateInspector {
         let loaded = rg.loaded();
         let loading = rg.loading();
         log::info!(loaded, loading; "loading progress");
-        
+
         // Update metrics
         METRIC_WORKER_EXPERT_LOADING
             .with_label_values(&[
