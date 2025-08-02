@@ -6,7 +6,8 @@ use safetensors::tensor::TensorView;
 use tracing::instrument;
 
 use crate::{
-    backend::{EkTensor, torch::TchTensor},
+    backend::{Device, EkTensor, torch::TchTensor},
+    ffn::expert_torch::stream,
     x::{self},
 };
 
@@ -40,6 +41,16 @@ impl ExpertBackend {
     #[instrument(skip(self, view))]
     pub fn forward(&self, view: &TensorView) -> EKResult<TchTensor> {
         match self {
+            ExpertBackend::Torch(exp) if matches!(exp.device(), Device::CUDA(_)) => {
+                let stream = stream::TorchStream::new(exp.device().into());
+                let _guard = stream.guard();
+                let inp = TchTensor::from_tensor_view(view);
+                let shape = inp.inner().size();
+                let inp = inp.to_device(exp.device());
+                log::debug!("input shape {shape:?}");
+                assert!(shape.len() == 2);
+                Ok(exp.forward(&inp))
+            }
             ExpertBackend::Torch(exp) => {
                 let inp = TchTensor::from_tensor_view(view);
                 let shape = inp.inner().size();

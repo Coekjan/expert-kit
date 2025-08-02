@@ -1,12 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "ek-base",
-    "ek-benchmark",
-    "ek-cli",
-    "ek-computation",
-    "ek-db",
-]
+members = ["ek-base", "ek-benchmark", "ek-cli", "ek-computation", "ek-db"]
 default-members = ["ek-cli"]
 
 [workspace.package]
@@ -34,6 +28,8 @@ bytes = "1.10.1"
 clap = { version = "4.5.31", features = ["derive"] }
 config = "0.15.11"
 criterion = { version = "0.6.0", features = ["html_reports"] }
+cxx = "1"
+cxx-build = "1"
 dashmap = "6.1.0"
 diesel = { version = "2.2.9", features = [
     "postgres",

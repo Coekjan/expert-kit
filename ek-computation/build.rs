@@ -1,20 +1,6 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // tonic_build::("../ek-proto/ek")?;
-    let os = std::env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
-    match os.as_str() {
-        "linux" | "windows" => {
-            if let Some(lib_path) = std::env::var_os("DEP_TCH_LIBTORCH_LIB") {
-                println!(
-                    "cargo:rustc-link-arg=-Wl,-rpath={}",
-                    lib_path.to_string_lossy()
-                );
-            }
-            println!("cargo:rustc-link-arg=-Wl,--no-as-needed");
-            // println!("cargo:rustc-link-arg=-Wl,--copy-dt-needed-entries");
-            println!("cargo:rustc-link-arg=-ltorch");
-        }
-        _ => {}
-    }
+    println!("cargo:rerun-if-changed=build.rs");
+
     tonic_build::configure().build_server(true).compile_protos(
         &[
             "../ek-proto/ek/control/v1/control.proto",
@@ -24,6 +10,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         &["../ek-proto"],
     )?;
+
     eprintln!("protobuf built");
+    println!("cargo:rerun-if-changed=ops/stream.cc");
+    println!("cargo:rerun-if-changed=ops/stream.h");
+    cxx_build::bridge("src/ffn/expert_torch/stream.rs")
+        .file("ops/stream.cc")
+        .flag_if_supported("-std=c++17")
+        .includes([
+            format!("{}/include", std::env::var("LIBTORCH")?),
+            format!("{}/include", std::env::var("CUDA_PATH")?),
+        ])
+        .warnings(false)
+        .compile("ek_torch_stream");
+
+    println!(
+        "cargo:rustc-link-search=native={}/lib",
+        std::env::var("CUDA_PATH")?
+    );
+    println!(
+        "cargo:rustc-link-search=native={}/lib64",
+        std::env::var("CUDA_PATH")?
+    );
+    println!("cargo:rustc-link-lib=cudart");
+
+    println!("cargo:rustc-link-arg=-Wl,--no-as-needed");
+    println!("cargo:rustc-link-arg=-Wl,--copy-dt-needed-entries");
+    println!("cargo:rustc-link-arg=-ltorch");
+
+    println!(
+        "cargo:rustc-link-search=native={}/lib",
+        std::env::var("LIBTORCH")?
+    );
+    println!("cargo:rustc-link-lib=c10");
+    println!("cargo:rustc-link-lib=c10_cuda");
+
     Ok(())
 }

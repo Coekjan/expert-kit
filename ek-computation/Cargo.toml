@@ -13,6 +13,7 @@ ek-db = { workspace = true }
 actix-web = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
+cxx = { workspace = true }
 diesel = { workspace = true }
 diesel-async = { workspace = true }
 env_logger = { workspace = true }
@@ -43,6 +44,7 @@ tracing-opentelemetry = { workspace = true }
 
 
 [build-dependencies]
+cxx-build = { workspace = true }
 tonic-build = { workspace = true }
 
 [dev-dependencies]

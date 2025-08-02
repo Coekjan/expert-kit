@@ -13,6 +13,8 @@ use tch::{
     nn::{self, Module},
 };
 
+pub(super) mod stream;
+
 pub struct TorchFFN {
     dim: usize,
     intermediate_dim: usize,
@@ -57,37 +59,37 @@ unsafe impl Sync for TorchFFN {}
 impl TorchFFN {
     pub fn load_module(&self) -> Arc<Mutex<nn::Sequential>> {
         let m = self.module.get_or_init(|| {
-            tch::no_grad(|| {
-                let w1_tensor = self
-                    .weight
-                    .up_w
-                    .inner()
-                    .shallow_clone()
-                    .to_kind(tch::Kind::BFloat16)
-                    .to_device(self.device.into());
-                let w2_tensor = self
-                    .weight
-                    .down_w
-                    .inner()
-                    .shallow_clone()
-                    .to_kind(tch::Kind::BFloat16)
-                    .to_device(self.device.into());
-                let w3_tensor = self
-                    .weight
-                    .gate_w
-                    .inner()
-                    .shallow_clone()
-                    .to_kind(tch::Kind::BFloat16)
-                    .to_device(self.device.into());
-                let module = nn::seq().add_fn(move |x| {
+            let w1_tensor = self
+                .weight
+                .up_w
+                .inner()
+                .shallow_clone()
+                .to_kind(tch::Kind::BFloat16)
+                .to_device(self.device.into());
+            let w2_tensor = self
+                .weight
+                .down_w
+                .inner()
+                .shallow_clone()
+                .to_kind(tch::Kind::BFloat16)
+                .to_device(self.device.into());
+            let w3_tensor = self
+                .weight
+                .gate_w
+                .inner()
+                .shallow_clone()
+                .to_kind(tch::Kind::BFloat16)
+                .to_device(self.device.into());
+            let module = nn::seq().add_fn(move |x| {
+                tch::no_grad(|| {
                     let _up = x.matmul(&w1_tensor.transpose(0, 1));
-                    let _gate = x.matmul(&w3_tensor.transpose(0, 1));
+                    let _gate: tch::Tensor = x.matmul(&w3_tensor.transpose(0, 1));
                     let _hidden = _up * _gate.silu();
                     _hidden.matmul(&w2_tensor.transpose(0, 1))
-                });
+                })
+            });
 
-                Arc::new(Mutex::new(module))
-            })
+            Arc::new(Mutex::new(module))
         });
         m.clone()
     }
