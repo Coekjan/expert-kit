@@ -1,10 +1,9 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use ek_base::error::{EKError, EKResult};
-use once_cell::sync::OnceCell;
 use tokio::sync::RwLock;
 use tonic::async_trait;
 
@@ -58,7 +57,7 @@ pub struct ExpertDBImplSync {
 
 /// Get the shared database core instance
 fn get_shared_db_core() -> SharedExpertDB {
-    static INSTANCE: OnceCell<SharedExpertDB> = OnceCell::new();
+    static INSTANCE: OnceLock<SharedExpertDB> = OnceLock::new();
     INSTANCE
         .get_or_init(|| {
             Arc::new(RwLock::new(ExpertDBCore {
@@ -71,7 +70,7 @@ fn get_shared_db_core() -> SharedExpertDB {
 
 /// Get the async expert database instance
 pub fn get_expert_db() -> Arc<RwLock<dyn ExpertDB + Send + Sync>> {
-    static INSTANCE: OnceCell<Arc<RwLock<ExpertDBImplAsync>>> = OnceCell::new();
+    static INSTANCE: OnceLock<Arc<RwLock<ExpertDBImplAsync>>> = OnceLock::new();
     let res = INSTANCE.get_or_init(|| {
         let core = get_shared_db_core();
         Arc::new(RwLock::new(ExpertDBImplAsync { core }))
@@ -81,7 +80,7 @@ pub fn get_expert_db() -> Arc<RwLock<dyn ExpertDB + Send + Sync>> {
 
 /// Get the sync expert database instance
 pub fn get_expert_db_sync() -> Arc<dyn ExpertDBSync + Send + Sync> {
-    static INSTANCE: OnceCell<Arc<ExpertDBImplSync>> = OnceCell::new();
+    static INSTANCE: OnceLock<Arc<ExpertDBImplSync>> = OnceLock::new();
     let res = INSTANCE.get_or_init(|| {
         let core = get_shared_db_core();
         Arc::new(ExpertDBImplSync { core })
@@ -106,10 +105,10 @@ impl ExpertDBCore {
 
     fn mark_loading(&mut self, id: &str) -> EKResult<bool> {
         let locked = self.loading.get(id);
-        if let Some(locked) = locked {
-            if *locked {
-                return Ok(false);
-            }
+        if let Some(locked) = locked
+            && *locked
+        {
+            return Ok(false);
         }
         let entry = self.loading.entry(id.into()).or_insert(true);
         *entry = true;
