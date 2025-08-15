@@ -74,7 +74,7 @@ impl StateService for StateServerImpl {
         &self,
         mut request: tonic::Request<Streaming<v1::ExchangeReq>>,
     ) -> Result<Response<Self::ExchangeStream>> {
-        let mut lg = DISPATCHER.lock().await;
+        let mut dispather_guard = DISPATCHER.lock().await;
         let (stream_tx, stream_rx) = mpsc::channel(4);
         let first_message = request
             .get_mut()
@@ -82,11 +82,17 @@ impl StateService for StateServerImpl {
             .await?
             .ok_or(Status::invalid_argument("no message"))?;
         let worker_id = first_message.id.clone();
+        
+        // Handle incoming worker requests: Ping
         tokio::spawn(async move {
+            // Upsert worker node and update last seen time in database
             StateServerImpl::listen_worker_ping(request, worker_id.clone()).await;
         });
+        
+        // Watcher experts updates for the worker
+        let mut rx = dispather_guard.subscribe(&first_message.id).await;
 
-        let mut rx = lg.subscribe(&first_message.id).await;
+        // Handle outgoing messages to the worker: New Experts
         tokio::spawn(async move {
             while let Some(t) = rx.recv().await {
                 let resp = ExchangeResp {
@@ -99,6 +105,7 @@ impl StateService for StateServerImpl {
                 };
             }
         });
+
         Ok(Response::new(Self::ExchangeStream::new(stream_rx)))
     }
 }
