@@ -95,7 +95,10 @@ impl ExpertRegistryImpl {
                 ch: channel,
                 host_id: node.hostname.clone(),
             };
-            self.channels.insert(eid.to_owned(), vec![meta]);
+            self.channels
+                .entry(eid.to_owned())
+                .or_insert_with(Vec::new)
+                .push(meta);
         }
         let res = self.channels.get(eid).ok_or(EKError::NotFound(format!(
             "no channel found for expert {eid}"
@@ -105,7 +108,8 @@ impl ExpertRegistryImpl {
                 "no channel found for expert {eid}"
             )));
         }
-        Ok(res[0].ch.clone())
+        let idx = rand::random::<usize>() % res.len();
+        Ok(res[idx].ch.clone())
     }
 
     pub async fn inner_deregister(&mut self, host_id: &str) {
