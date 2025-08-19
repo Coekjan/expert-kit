@@ -1,6 +1,7 @@
 use super::manager::{ExpertDB, ExpertDBSync, get_expert_db, get_expert_db_sync};
 use crate::{
     backend::{EkTensor, torch::TchTensor},
+    controller::registry::ExpertIdRef,
     proto::ek,
 };
 use core::fmt;
@@ -136,6 +137,18 @@ impl EKInstanceGateSync {
         );
 
         Ok(resp)
+    }
+
+    pub fn forward_sync_core(
+        &self,
+        expert_id: ExpertIdRef<'_>,
+        input_tensor: &[u8],
+    ) -> EKResult<Vec<u8>> {
+        let exp = self.experts.load(expert_id)?;
+        let st = safetensors::SafeTensors::deserialize(input_tensor)?;
+        let tv = st.tensor("data")?;
+        let res = exp.forward(&tv)?;
+        Ok(res.serialize())
     }
 
     /// Get list of currently loaded experts (sync version)
