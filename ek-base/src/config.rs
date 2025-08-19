@@ -86,6 +86,10 @@ pub struct WorkerSettings {
     pub broadcast: String,
     pub ports: WorkerPorts,
     pub device: String,
+    #[serde(default = "default_backend")]
+    pub backend: String,
+    #[serde(default)]
+    pub drop_cache: bool,
     #[serde(default = "default_worker_metrics")]
     pub metrics: String,
     pub advanced: Option<WorkerAdvancedSettings>,
@@ -97,6 +101,10 @@ fn default_worker_metrics() -> String {
 
 fn default_worker_channel() -> String {
     "grpc".to_string()
+}
+
+fn default_backend() -> String {
+    "torch".to_string()
 }
 
 fn default_worker_id() -> String {
