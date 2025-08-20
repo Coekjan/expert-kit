@@ -2,6 +2,7 @@ mod core;
 
 use std::env;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::time;
 use std::time::Duration;
@@ -28,6 +29,12 @@ use crate::x::get_graceful_shutdown_ch;
 
 use super::worker::state::StateClient;
 use ek_base::{config::get_ek_settings, error::EKResult};
+
+static WORKER_PARALLEL: LazyLock<usize> = LazyLock::new(|| {
+    env::var("EK_WORKER_PARALLEL")
+        .map(|v| v.parse().unwrap_or(1))
+        .unwrap_or(1)
+});
 
 /// Main worker entry point
 pub async fn worker_main() -> EKResult<()> {
@@ -56,7 +63,7 @@ pub async fn worker_main() -> EKResult<()> {
     let async_srv;
     let mut sync_srvs = Vec::new();
     let poison = Arc::new(Mutex::new(false));
-    tch::set_num_threads(1);
+    tch::set_num_threads(*WORKER_PARALLEL as _);
 
     if settings.worker.channel == "grpc" {
         // Spawn gRPC server task (handles computation requests)

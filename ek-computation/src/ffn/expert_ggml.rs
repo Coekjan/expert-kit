@@ -113,7 +113,14 @@ impl Expert<GgmlTensor> for GgmlFFN {
         x: crate::x::EKInstance,
         weight: ExpertWeight<GgmlTensor>,
     ) -> ek_base::error::EKResult<Self> {
-        Ok(Self::new(x.hidden, x.intermediate, weight, 1)) // TODO: Make n_threads configurable
+        Ok(Self::new(
+            x.hidden,
+            x.intermediate,
+            weight,
+            std::env::var("EK_WORKER_PARALLEL")
+                .map(|v| v.parse().unwrap_or(1))
+                .unwrap_or(1),
+        ))
     }
 }
 
