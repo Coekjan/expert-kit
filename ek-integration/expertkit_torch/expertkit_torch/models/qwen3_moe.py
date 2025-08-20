@@ -233,7 +233,6 @@ def evaluate_batch(
     *,
     model_path="./",
     prompts="What is MoE Model?",
-    input_max_length=64,
     output_max_length=64,
     enable_ek=True,
     ek_addr="localhost:5002",
@@ -299,7 +298,6 @@ def evaluate_batch(
             return_tensors="pt",
             padding=True,
             truncation=True,
-            max_length=input_max_length,
         ).to(model.device)
 
         # Generate responses - profiling happens automatically via hooks
@@ -402,12 +400,6 @@ def main():
         help="Enable detailed profiling of model components (attention vs expert).",
     )
     parser.add_argument(
-        "--input_max",
-        type=int,
-        default=64,
-        help="The maximum input length for the model.",
-    )
-    parser.add_argument(
         "--output_max",
         type=int,
         default=64,
@@ -461,7 +453,6 @@ def main():
             enable_ek=args.enable_ek,
             ek_addr=args.ek_addr,
             ek_model_name=args.ek_model_name,
-            input_max_length=args.input_max,
             output_max_length=args.output_max,
         )
         aggregated_results.extend(batch_result["results"])
